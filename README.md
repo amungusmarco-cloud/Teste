@@ -1,80 +1,48 @@
---!native
 -- ========================================
--- ⚡ THUNDER HUB
--- Auto Farm + Kill Aura + Anti-Xit + Discord Error
--- Versão: 1.0
+-- ⚡ THUNDER HUB - DUNGEON QUEST REBORN
+-- Versão: 2.0
 -- Criado por: THUNDER ⚡
 -- ========================================
 
 -- ========================================
--- CONFIGURAÇÕES DO CRIADOR
+-- CONFIGURAÇÕES
 -- ========================================
-local CREATOR = {
-    Name = "THUNDER ⚡",
-    Discord = "https://discord.gg/GTMEDtwmva",
-    Version = "1.0",
-    HubName = "⚡ THUNDER HUB"
-}
-
--- ========================================
--- CARREGAR BIBLIOTECA FLUENT
--- ========================================
-local Fluent: any
-pcall(function()
-    Fluent = loadstring(game:HttpGet("https://github.com/StyearX/Fluent-modded/releases/download/1.5.5/FluentPro"))()
-end)
-
-if not Fluent then
-    warn("[THUNDER] Falha ao carregar Fluent")
-    return
-end
+local CREATOR = "THUNDER ⚡"
+local DISCORD = "https://discord.gg/SEUINVITE"
+local VERSION = "2.0"
 
 -- ========================================
 -- SERVIÇOS
 -- ========================================
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local TweenService = game:GetService("TweenService")
-local TeleportService = game:GetService("TeleportService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
 local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
 -- ========================================
--- CONFIGURAÇÕES DO HUB
--- ========================================
-local CONFIG = {
-    DiscordInvite = CREATOR.Discord,
-    DiscordServerName = "Thunder Hub Community",
-    AntiKick = true,
-    AntiBan = true,
-    AntiTeleport = true,
-    AutoReconnect = true,
-    KillAuraRange = 50,
-    KillAuraDelay = 0.1,
-    DungeonWaitTime = 2,
-}
-
--- ========================================
 -- VARIÁVEIS GLOBAIS
 -- ========================================
 _G.KillAura = false
 _G.AntiDodge = false
-_G.AutoRepeatDungeon = false
+_G.AutoRepeat = false
+_G.AutoFarm = false
 _G.SelectedDungeon = "Normal"
-_G.CurrentTheme = "Thunder"
-_G.KillAuraRange = CONFIG.KillAuraRange
-_G.KillAuraDelay = CONFIG.KillAuraDelay
+_G.KillAuraRange = 50
+_G.KillAuraDelay = 0.1
+_G.AutoHeal = true
+_G.HealThreshold = 30
 
 -- ========================================
 -- LISTA DE DUNGEONS
 -- ========================================
-local DungeonList: {string} = {
+local DungeonList = {
     "Normal",
     "Hard", 
     "Nightmare",
@@ -84,309 +52,17 @@ local DungeonList: {string} = {
 }
 
 -- ========================================
--- SISTEMA ANTI-XIT COMPLETO
+-- VERIFICAR SE É DUNGEON QUEST
 -- ========================================
-
--- 1. BLOQUEAR KICK
-local function BlockKicks()
-    pcall(function()
-        local oldKick = LocalPlayer.Kick
-        LocalPlayer.Kick = function(self, ...)
-            local args = {...}
-            local reason = args[1] or "Desconhecido"
-            ShowDiscordError("⚡ KICK DETECTADO", 
-                "Você foi removido do servidor.\nMotivo: " .. tostring(reason) ..
-                "\n\n🔹 Criado por: " .. CREATOR.Name
-            )
-            if CONFIG.AutoReconnect then
-                task.wait(2)
-                TeleportService:Teleport(game.PlaceId, LocalPlayer)
-            end
-            return nil
-        end
-        
-        local mt = getrawmetatable(game)
-        if mt then
-            local oldNamecall = mt.__namecall
-            mt.__namecall = function(self, ...)
-                local method = getnamecallmethod()
-                local args = {...}
-                if method == "FireServer" and tostring(args[1]):lower():find("kick") then
-                    ShowDiscordError("⚡ KICK REMOTO", 
-                        "Tentativa de kick via Remote detectada!\n\n🔹 Criado por: " .. CREATOR.Name
-                    )
-                    return nil
-                end
-                if method == "InvokeServer" and tostring(args[1]):lower():find("kick") then
-                    ShowDiscordError("⚡ KICK REMOTO", 
-                        "Tentativa de kick via Remote detectada!\n\n🔹 Criado por: " .. CREATOR.Name
-                    )
-                    return nil
-                end
-                return oldNamecall(self, ...)
-            end
-        end
-    end)
+local function IsDungeonQuest()
+    return game.PlaceId == 15590669150 or game.PlaceId == 4861900093
 end
 
--- 2. BLOQUEAR BAN
-local function BlockBan()
-    pcall(function()
-        LocalPlayer:GetPropertyChangedSignal("MembershipType"):Connect(function()
-            if LocalPlayer.MembershipType == Enum.MembershipType.Banned then
-                ShowDiscordError("⚡ CONTA BANIDA", 
-                    "Sua conta foi banida!\nEntre em contato com o suporte.\n\n🔹 Criado por: " .. CREATOR.Name
-                )
-            end
-        end)
-    end)
-end
-
--- 3. BLOQUEAR TELEPORTE FORÇADO
-local function BlockForcedTeleport()
-    pcall(function()
-        local mt = getrawmetatable(game)
-        if mt then
-            local oldNamecall = mt.__namecall
-            mt.__namecall = function(self, ...)
-                local method = getnamecallmethod()
-                local args = {...}
-                if method == "FireServer" and tostring(args[1]):lower():find("teleport") then
-                    if CONFIG.AntiTeleport then
-                        ShowDiscordError("⚡ TELEPORTE BLOQUEADO", 
-                            "Tentativa de teleporte forçado detectada!\n\n🔹 Criado por: " .. CREATOR.Name
-                        )
-                        return nil
-                    end
-                end
-                return oldNamecall(self, ...)
-            end
-        end
-    end)
-end
-
--- 4. DETECTAR ATIVIDADE SUSPEITA
-local function DetectSuspiciousActivity()
-    pcall(function()
-        LocalPlayer:GetPropertyChangedSignal("Parent"):Connect(function()
-            if LocalPlayer.Parent == nil then
-                ShowDiscordError("⚡ CONEXÃO PERDIDA", 
-                    "Você foi desconectado do servidor!\n\n🔹 Criado por: " .. CREATOR.Name
-                )
-                if CONFIG.AutoReconnect then
-                    task.wait(2)
-                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
-                end
-            end
-        end)
-    end)
-end
-
--- 5. AUTO-RECONEXÃO
-local function AutoReconnect()
-    pcall(function()
-        if CONFIG.AutoReconnect then
-            LocalPlayer:GetPropertyChangedSignal("Parent"):Connect(function()
-                if LocalPlayer.Parent == nil then
-                    task.wait(2)
-                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
-                end
-            end)
-        end
-    end)
-end
-
--- 6. MOSTRAR ERRO COM DISCORD + CRÉDITOS
-local function ShowDiscordError(title: string, message: string)
-    pcall(function()
-        local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "ThunderError"
-        screenGui.ResetOnSpawn = false
-        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-        
-        local backdrop = Instance.new("Frame")
-        backdrop.Size = UDim2.new(1, 0, 1, 0)
-        backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        backdrop.BackgroundTransparency = 0.7
-        backdrop.BorderSizePixel = 0
-        backdrop.Parent = screenGui
-        
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 500, 0, 380)
-        frame.Position = UDim2.new(0.5, -250, 0.5, -190)
-        frame.BackgroundColor3 = Color3.fromRGB(10, 20, 40)
-        frame.BackgroundTransparency = 0.05
-        frame.BorderSizePixel = 0
-        frame.Parent = screenGui
-        
-        local border = Instance.new("Frame")
-        border.Size = UDim2.new(1, 0, 1, 0)
-        border.Position = UDim2.new(0, 0, 0, 0)
-        border.BackgroundColor3 = Color3.fromRGB(0, 191, 255)
-        border.BackgroundTransparency = 0.8
-        border.BorderSizePixel = 0
-        border.Parent = frame
-        
-        local borderCorner = Instance.new("UICorner")
-        borderCorner.CornerRadius = UDim.new(0, 16)
-        borderCorner.Parent = border
-        
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 16)
-        corner.Parent = frame
-        
-        local titleLabel = Instance.new("TextLabel")
-        titleLabel.Size = UDim2.new(1, 0, 0, 60)
-        titleLabel.Position = UDim2.new(0, 0, 0, 10)
-        titleLabel.BackgroundTransparency = 1
-        titleLabel.Text = "⚡ " .. title
-        titleLabel.TextColor3 = Color3.fromRGB(0, 191, 255)
-        titleLabel.TextSize = 28
-        titleLabel.Font = Enum.Font.SourceSansBold
-        titleLabel.TextXAlignment = Enum.TextXAlignment.Center
-        titleLabel.Parent = frame
-        
-        local divider = Instance.new("Frame")
-        divider.Size = UDim2.new(0.8, 0, 0, 2)
-        divider.Position = UDim2.new(0.1, 0, 0, 75)
-        divider.BackgroundColor3 = Color3.fromRGB(0, 191, 255)
-        divider.BorderSizePixel = 0
-        divider.Parent = frame
-        
-        local msgLabel = Instance.new("TextLabel")
-        msgLabel.Size = UDim2.new(0.9, 0, 0, 110)
-        msgLabel.Position = UDim2.new(0.05, 0, 0.25, 0)
-        msgLabel.BackgroundTransparency = 1
-        msgLabel.Text = message .. "\n\n🔹 Entre no Discord para resolver:"
-        msgLabel.TextColor3 = Color3.fromRGB(200, 210, 230)
-        msgLabel.TextSize = 16
-        msgLabel.Font = Enum.Font.SourceSans
-        msgLabel.TextWrapped = true
-        msgLabel.TextXAlignment = Enum.TextXAlignment.Center
-        msgLabel.TextYAlignment = Enum.TextYAlignment.Top
-        msgLabel.Parent = frame
-        
-        local creditLabel = Instance.new("TextLabel")
-        creditLabel.Size = UDim2.new(1, 0, 0, 30)
-        creditLabel.Position = UDim2.new(0, 0, 0.9, 0)
-        creditLabel.BackgroundTransparency = 1
-        creditLabel.Text = "⚡ Criado por: " .. CREATOR.Name
-        creditLabel.TextColor3 = Color3.fromRGB(0, 191, 255)
-        creditLabel.TextSize = 14
-        creditLabel.Font = Enum.Font.SourceSans
-        creditLabel.TextXAlignment = Enum.TextXAlignment.Center
-        creditLabel.Parent = frame
-        
-        local discordBtn = Instance.new("TextButton")
-        discordBtn.Size = UDim2.new(0.7, 0, 0, 50)
-        discordBtn.Position = UDim2.new(0.15, 0, 0.65, 0)
-        discordBtn.BackgroundColor3 = Color3.fromRGB(0, 191, 255)
-        discordBtn.Text = "📱 ABRIR DISCORD"
-        discordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        discordBtn.TextSize = 18
-        discordBtn.Font = Enum.Font.SourceSansBold
-        discordBtn.Parent = frame
-        
-        local discordCorner = Instance.new("UICorner")
-        discordCorner.CornerRadius = UDim.new(0, 8)
-        discordCorner.Parent = discordBtn
-        
-        discordBtn.MouseEnter:Connect(function()
-            discordBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 220)
-        end)
-        discordBtn.MouseLeave:Connect(function()
-            discordBtn.BackgroundColor3 = Color3.fromRGB(0, 191, 255)
-        end)
-        
-        local copyBtn = Instance.new("TextButton")
-        copyBtn.Size = UDim2.new(0.3, 0, 0, 35)
-        copyBtn.Position = UDim2.new(0.35, 0, 0.85, 0)
-        copyBtn.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
-        copyBtn.Text = "📋 Copiar"
-        copyBtn.TextColor3 = Color3.fromRGB(0, 191, 255)
-        copyBtn.TextSize = 14
-        copyBtn.Font = Enum.Font.SourceSans
-        copyBtn.Parent = frame
-        
-        local copyCorner = Instance.new("UICorner")
-        copyCorner.CornerRadius = UDim.new(0, 6)
-        copyCorner.Parent = copyBtn
-        
-        local closeBtn = Instance.new("TextButton")
-        closeBtn.Size = UDim2.new(0, 35, 0, 35)
-        closeBtn.Position = UDim2.new(1, -45, 0, 5)
-        closeBtn.BackgroundTransparency = 1
-        closeBtn.Text = "✕"
-        closeBtn.TextColor3 = Color3.fromRGB(200, 200, 210)
-        closeBtn.TextSize = 22
-        closeBtn.Font = Enum.Font.SourceSansBold
-        closeBtn.Parent = frame
-        
-        discordBtn.MouseButton1Click:Connect(function()
-            pcall(function()
-                setclipboard(CONFIG.DiscordInvite)
-                Fluent:Notify({
-                    Title = CREATOR.HubName,
-                    Content = "Convite copiado! " .. CONFIG.DiscordInvite,
-                    Duration = 5
-                })
-            end)
-        end)
-        
-        copyBtn.MouseButton1Click:Connect(function()
-            pcall(function()
-                setclipboard(CONFIG.DiscordInvite)
-                Fluent:Notify({
-                    Title = CREATOR.HubName,
-                    Content = "📋 Convite copiado: " .. CONFIG.DiscordInvite,
-                    Duration = 3
-                })
-            end)
-        end)
-        
-        closeBtn.MouseButton1Click:Connect(function()
-            screenGui:Destroy()
-        end)
-        
-        frame.BackgroundTransparency = 0.05
-        local tween = TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
-            Position = UDim2.new(0.5, -250, 0.5, -190)
-        })
-        tween:Play()
-        
-        task.delay(30, function()
-            if screenGui and screenGui.Parent then
-                screenGui:Destroy()
-            end
-        end)
-    end)
-end
-
--- ========================================
--- INICIAR ANTI-XIT
--- ========================================
-task.spawn(function()
-    pcall(function()
-        BlockKicks()
-        BlockBan()
-        BlockForcedTeleport()
-        DetectSuspiciousActivity()
-        AutoReconnect()
-        print("⚡ [THUNDER] Anti-Xit ativado! | Criado por: " .. CREATOR.Name)
-    end)
-end)
-
--- ========================================
--- FUNÇÕES DO JOGO
--- ========================================
-
--- Verificar se está na dungeon
 local function IsInDungeon()
     local map = Workspace:FindFirstChild("Map")
     if map then
         for _, child in map:GetChildren() do
-            if child.Name:find("Dungeon") or child.Name:find("Floor") then
+            if child.Name:find("Dungeon") or child.Name:find("Floor") or child.Name:find("Stage") then
                 return true
             end
         end
@@ -394,13 +70,29 @@ local function IsInDungeon()
     return false
 end
 
--- Obter alvos
+local function IsDungeonComplete()
+    local enemies = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Mobs")
+    if enemies then
+        for _, mob in enemies:GetChildren() do
+            if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
+                if mob.Name:find("Boss") or mob.Name:find("King") or mob.Name:find("Lord") or mob.Name:find("Demon") then
+                    return false
+                end
+            end
+        end
+        return true
+    end
+    return false
+end
+
+-- ========================================
+-- FUNÇÕES DE COMBATE
+-- ========================================
+
 local function GetTargets()
     local targets = {}
     local hrp = Character and Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then
-        return targets
-    end
+    if not hrp then return targets end
     
     local pos = hrp.Position
     local range = _G.KillAuraRange or 50
@@ -412,7 +104,7 @@ local function GetTargets()
     if enemiesFolder then
         for _, mob in enemiesFolder:GetChildren() do
             if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-                local root = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso")
+                local root = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso") or mob:FindFirstChild("UpperTorso")
                 if root then
                     local dist = (root.Position - pos).Magnitude
                     if dist <= range then
@@ -420,8 +112,7 @@ local function GetTargets()
                             Character = mob,
                             Humanoid = mob.Humanoid,
                             RootPart = root,
-                            Distance = dist,
-                            IsNPC = true
+                            Distance = dist
                         })
                     end
                 end
@@ -433,11 +124,8 @@ local function GetTargets()
     return targets
 end
 
--- Atacar alvo
 local function AttackTarget(target)
-    if not target or not target.Character then
-        return false
-    end
+    if not target or not target.Character then return false end
     if target.Humanoid and target.Humanoid.Health > 0 then
         target.Humanoid.Health = 0
         return true
@@ -445,97 +133,153 @@ local function AttackTarget(target)
     return false
 end
 
--- Kill Aura Loop
+local function UseSkill(key)
+    local vim = game:GetService("VirtualInputManager")
+    pcall(function()
+        vim:SendKeyEvent(true, key, false, game)
+        task.wait(0.05)
+        vim:SendKeyEvent(false, key, false, game)
+    end)
+end
+
+-- ========================================
+-- LOOP: KILL AURA
+-- ========================================
 task.spawn(function()
     while task.wait(_G.KillAuraDelay or 0.1) do
-        if not _G.KillAura then
-            continue
-        end
+        if not _G.KillAura then continue end
         pcall(function()
             local targets = GetTargets()
-            for _, target in targets do
-                if target.Humanoid and target.Humanoid.Health > 0 then
-                    AttackTarget(target)
-                    break
+            if #targets > 0 then
+                for _, target in targets do
+                    if target.Humanoid and target.Humanoid.Health > 0 then
+                        AttackTarget(target)
+                        break
+                    end
                 end
             end
         end)
     end
 end)
 
--- Anti-Dodge
+-- ========================================
+-- LOOP: ANTI-DODGE
+-- ========================================
 task.spawn(function()
     while task.wait(0.05) do
-        if not _G.AntiDodge or not _G.KillAura then
-            continue
-        end
+        if not _G.AntiDodge or not _G.KillAura then continue end
         pcall(function()
             local targets = GetTargets()
             for _, target in targets do
                 if target.RootPart then
                     if target.Character:FindFirstChild("Humanoid") then
-                        local hum = target.Character.Humanoid
-                        hum.WalkSpeed = 0
-                        hum.JumpPower = 0
+                        target.Character.Humanoid.WalkSpeed = 0
+                        target.Character.Humanoid.JumpPower = 0
                     end
                     target.RootPart.Velocity = Vector3.zero
-                    target.RootPart.RotVelocity = Vector3.zero
+                    target.RootPart.CFrame = target.RootPart.CFrame
                 end
             end
         end)
     end
 end)
 
--- Auto Repeat Dungeon
+-- ========================================
+-- LOOP: AUTO HEAL
+-- ========================================
+task.spawn(function()
+    while task.wait(0.5) do
+        if not _G.AutoHeal then continue end
+        pcall(function()
+            local hum = Character and Character:FindFirstChild("Humanoid")
+            if hum then
+                local healthPercent = (hum.Health / hum.MaxHealth) * 100
+                if healthPercent <= _G.HealThreshold then
+                    UseSkill("Q")
+                end
+            end
+        end)
+    end
+end)
+
+-- ========================================
+-- FUNÇÕES: DUNGEON
+-- ========================================
+
 local function StartDungeon()
     pcall(function()
-        local startRemote = ReplicatedStorage:FindFirstChild("StartDungeon") 
-            or ReplicatedStorage:FindFirstChild("DungeonStart")
-            or ReplicatedStorage:FindFirstChild("Queue")
+        local remotes = {
+            ReplicatedStorage:FindFirstChild("StartDungeon"),
+            ReplicatedStorage:FindFirstChild("DungeonStart"),
+            ReplicatedStorage:FindFirstChild("Queue"),
+            ReplicatedStorage:FindFirstChild("JoinDungeon"),
+            ReplicatedStorage:FindFirstChild("EnterDungeon")
+        }
         
-        if startRemote then
-            if startRemote:IsA("RemoteEvent") then
-                startRemote:FireServer(_G.SelectedDungeon)
-            elseif startRemote:IsA("RemoteFunction") then
-                startRemote:InvokeServer(_G.SelectedDungeon)
+        for _, remote in pairs(remotes) do
+            if remote then
+                if remote:IsA("RemoteEvent") then
+                    remote:FireServer(_G.SelectedDungeon)
+                elseif remote:IsA("RemoteFunction") then
+                    remote:InvokeServer(_G.SelectedDungeon)
+                end
+                break
+            end
+        end
+        
+        local gui = LocalPlayer.PlayerGui:FindFirstChild("DungeonGUI") 
+            or LocalPlayer.PlayerGui:FindFirstChild("Main")
+        if gui then
+            local startButton = gui:FindFirstChild("StartButton") 
+                or gui:FindFirstChild("QueueButton")
+                or gui:FindFirstChild("PlayButton")
+            if startButton and startButton:IsA("TextButton") then
+                startButton:FireServer()
             end
         end
     end)
 end
 
-local function IsDungeonComplete()
-    local enemies = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Mobs")
-    if enemies then
-        local hasAlive = false
-        for _, mob in enemies:GetChildren() do
-            if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-                if mob.Name:find("Boss") or mob.Name:find("King") or mob.Name:find("Lord") then
-                    hasAlive = true
-                    break
+local function LeaveDungeon()
+    pcall(function()
+        local remotes = {
+            ReplicatedStorage:FindFirstChild("LeaveDungeon"),
+            ReplicatedStorage:FindFirstChild("ExitDungeon"),
+            ReplicatedStorage:FindFirstChild("Leave")
+        }
+        
+        for _, remote in pairs(remotes) do
+            if remote then
+                if remote:IsA("RemoteEvent") then
+                    remote:FireServer()
+                elseif remote:IsA("RemoteFunction") then
+                    remote:InvokeServer()
                 end
+                break
             end
         end
-        if not hasAlive then
-            return true
-        end
-    end
-    return false
+    end)
 end
 
+-- ========================================
+-- LOOP: AUTO REPEAT DUNGEON
+-- ========================================
 task.spawn(function()
     while task.wait(0.5) do
-        if not _G.AutoRepeatDungeon then
-            continue
-        end
+        if not _G.AutoRepeat then continue end
         pcall(function()
-            if not IsInDungeon() then
+            local inDungeon = IsInDungeon()
+            
+            if not inDungeon then
                 StartDungeon()
-                task.wait(CONFIG.DungeonWaitTime or 2)
+                task.wait(2)
             else
                 if IsDungeonComplete() then
                     task.wait(2)
+                    LeaveDungeon()
+                    task.wait(2)
                     StartDungeon()
-                    task.wait(CONFIG.DungeonWaitTime or 2)
+                    task.wait(2)
                 end
             end
         end)
@@ -543,52 +287,302 @@ task.spawn(function()
 end)
 
 -- ========================================
--- INTERFACE THUNDER HUB
+-- LOOP: AUTO FARM
 -- ========================================
-
--- Registrar temas personalizados
-pcall(function()
-    Fluent:RegisterCustomTheme("Thunder", {
-        Accent = Color3.fromRGB(0, 191, 255),
-        AcrylicMain = Color3.fromRGB(10, 20, 40),
-        Text = Color3.fromRGB(220, 235, 255),
-        SubText = Color3.fromRGB(100, 180, 230),
-        ToggleToggled = Color3.fromRGB(0, 191, 255),
-    })
-    
-    Fluent:RegisterCustomTheme("DarkGold", {
-        Accent = Color3.fromRGB(255, 215, 0),
-        AcrylicMain = Color3.fromRGB(10, 10, 10),
-        Text = Color3.fromRGB(230, 215, 180),
-        SubText = Color3.fromRGB(180, 160, 100),
-        ToggleToggled = Color3.fromRGB(255, 215, 0),
-    })
+task.spawn(function()
+    while task.wait(0.2) do
+        if not _G.AutoFarm then continue end
+        
+        _G.KillAura = true
+        _G.AutoRepeat = true
+        
+        pcall(function()
+            if IsInDungeon() then
+                local targets = GetTargets()
+                for _, target in targets do
+                    if target.Humanoid and target.Humanoid.Health > 0 then
+                        AttackTarget(target)
+                        break
+                    end
+                end
+            end
+        end)
+    end
 end)
 
--- Criar Janela
-local Window = Fluent:CreateWindow({
-    Title = "⚡ THUNDER HUB",
-    SubTitle = "Criado por: " .. CREATOR.Name,
-    TabWidth = 130,
-    Size = UDim2.fromOffset(520, 420),
-    Acrylic = true,
-    Theme = "Thunder",
-    MinimizeKey = Enum.KeyCode.LeftControl,
-})
+-- ========================================
+-- MOSTRAR ERRO COM DISCORD
+-- ========================================
+local function ShowDiscordError(title, message)
+    pcall(function()
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "ThunderError"
+        screenGui.ResetOnSpawn = false
+        screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        
+        local backdrop = Instance.new("Frame")
+        backdrop.Size = UDim2.new(1, 0, 1, 0)
+        backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        backdrop.BackgroundTransparency = 0.6
+        backdrop.BorderSizePixel = 0
+        backdrop.Parent = screenGui
+        
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 400, 0, 280)
+        frame.Position = UDim2.new(0.5, -200, 0.5, -140)
+        frame.BackgroundColor3 = Color3.fromRGB(10, 20, 40)
+        frame.BackgroundTransparency = 0.1
+        frame.BorderSizePixel = 0
+        frame.Parent = screenGui
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = frame
+        
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Size = UDim2.new(1, 0, 0, 50)
+        titleLabel.Position = UDim2.new(0, 0, 0, 10)
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.Text = "⚡ " .. title
+        titleLabel.TextColor3 = Color3.fromRGB(0, 191, 255)
+        titleLabel.TextSize = 22
+        titleLabel.Font = Enum.Font.SourceSansBold
+        titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+        titleLabel.Parent = frame
+        
+        local msgLabel = Instance.new("TextLabel")
+        msgLabel.Size = UDim2.new(0.9, 0, 0, 100)
+        msgLabel.Position = UDim2.new(0.05, 0, 0.2, 0)
+        msgLabel.BackgroundTransparency = 1
+        msgLabel.Text = message .. "\n\n📱 Discord: " .. DISCORD
+        msgLabel.TextColor3 = Color3.fromRGB(200, 210, 230)
+        msgLabel.TextSize = 14
+        msgLabel.Font = Enum.Font.SourceSans
+        msgLabel.TextWrapped = true
+        msgLabel.TextXAlignment = Enum.TextXAlignment.Center
+        msgLabel.Parent = frame
+        
+        local copyBtn = Instance.new("TextButton")
+        copyBtn.Size = UDim2.new(0.6, 0, 0, 40)
+        copyBtn.Position = UDim2.new(0.2, 0, 0.6, 0)
+        copyBtn.BackgroundColor3 = Color3.fromRGB(0, 191, 255)
+        copyBtn.Text = "📋 COPIAR DISCORD"
+        copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        copyBtn.TextSize = 16
+        copyBtn.Font = Enum.Font.SourceSansBold
+        copyBtn.Parent = frame
+        
+        local copyCorner = Instance.new("UICorner")
+        copyCorner.CornerRadius = UDim.new(0, 8)
+        copyCorner.Parent = copyBtn
+        
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 30, 0, 30)
+        closeBtn.Position = UDim2.new(1, -35, 0, 5)
+        closeBtn.BackgroundTransparency = 1
+        closeBtn.Text = "✕"
+        closeBtn.TextColor3 = Color3.fromRGB(200, 200, 210)
+        closeBtn.TextSize = 18
+        closeBtn.Font = Enum.Font.SourceSansBold
+        closeBtn.Parent = frame
+        
+        copyBtn.MouseButton1Click:Connect(function()
+            pcall(function()
+                if setclipboard then
+                    setclipboard(DISCORD)
+                end
+            end)
+        end)
+        
+        closeBtn.MouseButton1Click:Connect(function()
+            screenGui:Destroy()
+        end)
+        
+        local tween = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+            Position = UDim2.new(0.5, -200, 0.5, -140)
+        })
+        tween:Play()
+        
+        task.delay(30, function()
+            if screenGui and screenGui.Parent then
+                screenGui:Destroy()
+            end
+        end)
+    end)
+end)
 
 -- ========================================
--- TAB PRINCIPAL
+-- INTERFACE
 -- ========================================
-local MainTab = Window:AddTab({ Title = "⚡ Main", Icon = "zap" })
-
-MainTab:AddToggle("KillAura_Toggle", {
-    Title = "⚡ Kill Aura",
-    Description = "Ataca automaticamente os inimigos",
-    Default = false,
-    Callback = function(Value)
-        _G.KillAura = Value
-        Window:Notify({
-            Title = CREATOR.HubName,
-            Content = Value and "⚡ Kill Aura Ativada!" or "⚡ Kill Aura Desativada!",
-            Duration = 2
-      # Teste
+local function CreateUI()
+    if _G.ThunderUI and _G.ThunderUI.Parent then
+        _G.ThunderUI:Destroy()
+    end
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ThunderHub"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    _G.ThunderUI = screenGui
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 380, 0, 520)
+    mainFrame.Position = UDim2.new(0.5, -190, 0.5, -260)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(8, 16, 35)
+    mainFrame.BackgroundTransparency = 0.05
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 14)
+    corner.Parent = mainFrame
+    
+    local border = Instance.new("Frame")
+    border.Size = UDim2.new(1, 0, 1, 0)
+    border.BackgroundColor3 = Color3.fromRGB(0, 191, 255)
+    border.BackgroundTransparency = 0.6
+    border.BorderSizePixel = 0
+    border.Parent = mainFrame
+    
+    local borderCorner = Instance.new("UICorner")
+    borderCorner.CornerRadius = UDim.new(0, 14)
+    borderCorner.Parent = border
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.Position = UDim2.new(0, 0, 0, 5)
+    title.BackgroundTransparency = 1
+    title.Text = "⚡ THUNDER HUB"
+    title.TextColor3 = Color3.fromRGB(0, 191, 255)
+    title.TextSize = 26
+    title.Font = Enum.Font.SourceSansBold
+    title.TextXAlignment = Enum.TextXAlignment.Center
+    title.Parent = mainFrame
+    
+    local versionLabel = Instance.new("TextLabel")
+    versionLabel.Size = UDim2.new(0, 60, 0, 20)
+    versionLabel.Position = UDim2.new(1, -65, 0, 10)
+    versionLabel.BackgroundTransparency = 1
+    versionLabel.Text = "v" .. VERSION
+    versionLabel.TextColor3 = Color3.fromRGB(100, 180, 230)
+    versionLabel.TextSize = 12
+    versionLabel.Font = Enum.Font.SourceSans
+    versionLabel.TextXAlignment = Enum.TextXAlignment.Right
+    versionLabel.Parent = mainFrame
+    
+    local subTitle = Instance.new("TextLabel")
+    subTitle.Size = UDim2.new(1, 0, 0, 20)
+    subTitle.Position = UDim2.new(0, 0, 0, 50)
+    subTitle.BackgroundTransparency = 1
+    subTitle.Text = "Criado por: " .. CREATOR
+    subTitle.TextColor3 = Color3.fromRGB(130, 180, 230)
+    subTitle.TextSize = 13
+    subTitle.Font = Enum.Font.SourceSans
+    subTitle.TextXAlignment = Enum.TextXAlignment.Center
+    subTitle.Parent = mainFrame
+    
+    local divider = Instance.new("Frame")
+    divider.Size = UDim2.new(0.9, 0, 0, 1)
+    divider.Position = UDim2.new(0.05, 0, 0, 75)
+    divider.BackgroundColor3 = Color3.fromRGB(0, 191, 255)
+    divider.BackgroundTransparency = 0.5
+    divider.BorderSizePixel = 0
+    divider.Parent = mainFrame
+    
+    local function CreateToggle(text, y, varName, color)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.85, 0, 0, 38)
+        btn.Position = UDim2.new(0.075, 0, y/520, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(35, 40, 55)
+        btn.Text = text .. " ❌ OFF"
+        btn.TextColor3 = Color3.fromRGB(180, 190, 210)
+        btn.TextSize = 15
+        btn.Font = Enum.Font.SourceSansBold
+        btn.Parent = mainFrame
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.Parent = btn
+        
+        if _G[varName] then
+            btn.Text = text .. " ✅ ON"
+            btn.BackgroundColor3 = color or Color3.fromRGB(0, 191, 255)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
+        
+        btn.MouseButton1Click:Connect(function()
+            _G[varName] = not _G[varName]
+            if _G[varName] then
+                btn.Text = text .. " ✅ ON"
+                btn.BackgroundColor3 = color or Color3.fromRGB(0, 191, 255)
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            else
+                btn.Text = text .. " ❌ OFF"
+                btn.BackgroundColor3 = Color3.fromRGB(35, 40, 55)
+                btn.TextColor3 = Color3.fromRGB(180, 190, 210)
+            end
+        end)
+        
+        return btn
+    end
+    
+    local y = 85
+    local spacing = 44
+    
+    CreateToggle("⚡ Kill Aura", y, "KillAura")
+    y = y + spacing
+    
+    CreateToggle("🛡️ Anti-Dodge", y, "AntiDodge")
+    y = y + spacing
+    
+    CreateToggle("🔄 Auto Repeat", y, "AutoRepeat")
+    y = y + spacing
+    
+    CreateToggle("⭐ Auto Farm", y, "AutoFarm", Color3.fromRGB(255, 215, 0))
+    y = y + spacing
+    
+    local sectionLabel = Instance.new("TextLabel")
+    sectionLabel.Size = UDim2.new(0.85, 0, 0, 25)
+    sectionLabel.Position = UDim2.new(0.075, 0, y/520, 0)
+    sectionLabel.BackgroundTransparency = 1
+    sectionLabel.Text = "🏰 SELECIONAR DUNGEON"
+    sectionLabel.TextColor3 = Color3.fromRGB(0, 191, 255)
+    sectionLabel.TextSize = 14
+    sectionLabel.Font = Enum.Font.SourceSansBold
+    sectionLabel.TextXAlignment = Enum.TextXAlignment.Center
+    sectionLabel.Parent = mainFrame
+    
+    y = y + 30
+    
+    local dungeonLabel = Instance.new("TextLabel")
+    dungeonLabel.Size = UDim2.new(0.85, 0, 0, 22)
+    dungeonLabel.Position = UDim2.new(0.075, 0, y/520, 0)
+    dungeonLabel.BackgroundTransparency = 1
+    dungeonLabel.Text = "Atual: " .. _G.SelectedDungeon
+    dungeonLabel.TextColor3 = Color3.fromRGB(200, 210, 230)
+    dungeonLabel.TextSize = 13
+    dungeonLabel.Font = Enum.Font.SourceSans
+    dungeonLabel.TextXAlignment = Enum.TextXAlignment.Center
+    dungeonLabel.Parent = mainFrame
+    
+    y = y + 27
+    
+    local function CreateDungeonBtn(text, xPos, yPos)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.25, 0, 0, 28)
+        btn.Position = UDim2.new(xPos, 0, yPos/520, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(25, 40, 65)
+        btn.Text = text
+        btn.TextColor3 = Color3.fromRGB(180, 200, 220)
+        btn.TextSize = 11
+        btn.Font = Enum.Font.SourceSansBold
+        btn.Parent = mainFrame
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 4)
+        btnCorner.Parent = btn
+        
+        if text == _G.SelectedDungeon then
+            btn.BackgroundColor3 = Color3.fromRGB(0, 191, 255)
+            btn
